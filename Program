@@ -1,0 +1,400 @@
+/**
+* Aaron Cantu
+* Shell Project
+* 11/11/20
+* 
+*/
+
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <signal.h>
+
+//sighandler to see when buttons are pressed. 
+static void handler(int sig){
+	pid_t pid = getpid();
+	printf("\nShell Closed\n");
+	exit(0);
+}
+
+char* removeleadspace(char* str){
+	
+	static char str1[99];
+	int count = 0;
+	int j, k;
+	
+	while(str[count] == ' ')
+		count++;
+		
+	for(j = count, k = 0; str[j] != '\0'; j++, k++)
+		str1[k] = str[j];
+		
+	str1[k] = '\0';
+	
+	return str1;
+}
+
+char **parse(char *str){
+	char **tokens = (char **)malloc(sizeof(char *) * 64);
+	char *token;
+	//char s[10] = ";";
+	char s[10] = "\n;";
+	int position = 0;
+	int buf = 64;
+	
+	
+	if(!tokens){
+		printf("Error with allocation.\n");
+		exit(0);
+	}
+	token = strtok(str, s);
+	while(token != NULL){
+		tokens[position] = token;
+		position++;
+		
+		if(position >= buf){
+			buf += 64;
+			str = realloc(str, buf * sizeof(char *));
+			if(!str){
+				printf("Error with allocation.\n");
+				exit(0);
+			}
+		}
+		
+		if(strcmp(token, "'Ctrl-D'") == 0){
+			printf("Now exiting the shell.\n");
+			exit(0);
+		}
+			
+		system(token);
+		token = strtok(NULL, s);
+	}
+	
+	tokens[position]= NULL;
+	return tokens;
+}
+
+int main (int argc, char **argv){
+	
+	signal(SIGINT, handler);
+	
+	//Batch or Interactive mode
+	int mode =0;
+	
+	if(argc == 1){
+		printf("Entering Interactive Mode\n");
+		mode ++;
+		printf("Mode: %d\n",mode);
+	}else if(argc == 2){
+		printf("Entering Batch Mode\n");
+		mode += 2;
+		printf("Mode: %d\n",mode);
+	}else{
+		printf("Default into Batch Mode, too many arguements.\n");
+		mode += 2;
+		printf("Mode: %d\n",mode);
+	}
+	
+	//Decleration for entire code	
+	//print cwd path
+	long sz;
+	char *buf;
+	char *ptr;
+	sz = pathconf(".", _PC_PATH_MAX);
+		
+	//getline
+	char *token;
+	const char s[2] = ";";
+	const char s3[10] = "\n; ";
+	const char s4[2] = " ";
+	char *userin;
+	size_t newsize = 0;
+	size_t characters;
+	char c[512];
+	int bcount = 0;
+	int bcnt = 0;
+	
+	//print path once unless requested
+	int p =0;
+	
+	//Infinite loop
+	while(1){
+		 
+		 //print path
+		 if(p == 0){
+		 	if((buf = (char*)malloc((size_t)sz)) != NULL){
+		 		ptr = getcwd(buf, (size_t)sz);
+		 		if(mode == 1){
+		 		printf("shell>%s\n", ptr);
+		 		p++;
+		 		}else if(mode == 2){
+		 			printf("shell>%s/BatchFile\n", ptr);
+		 			p++;
+		 		}
+		 	}else{
+		 		printf("path not found.\n");
+		 	} 
+		 }
+		 
+		 //initialize execvp commands
+		 char comLs[] = "ls\n";
+		 char comLsL[] = "ls -l\n";
+		 char comLsL3[] = "ls-l";
+		 char comTou[] = "touch";
+		 char comCat[] = "cat";
+		 char comGrep[] = "grep";
+		 char comQuit[] = "quit\n";
+		 char comWc[] = "wc";
+		 
+		  if(mode == 1){		 
+		 	printf("shell>");
+		 	
+		 	//Allocate buffer
+		 	userin = (char*)malloc(newsize *sizeof(char));
+		 	
+		 	if(userin == NULL){
+		 		perror("\nFailed to allocate buffer\n");
+		 		exit(0);
+		 	}
+		 			 	
+		 	//Get information from user if over 512 end program.
+		 	characters = getline(&userin, &newsize, stdin);
+		 	
+		 	if(characters == 512){
+		 		printf("\nCharacter limit reahced (512).\n");
+		 		exit(0);
+		 	}
+		 	
+		 	
+		 	token = strtok(userin, s);
+		 	
+		 	//This is where we walk through the userinputs. 
+		 	//We're looking to stop the ; from being a problem
+		 	while(token != NULL){
+		 	
+		 		int token_count = 0;
+		 		int MAX = 512;
+		 		char result[MAX];
+                int start = 0;
+                token = removeleadspace(token);				
+		 		//show the inputs including the next one.	
+		 		printf("You entered:%s.\n", token);
+		 				 			
+		 		//here we quit if the input is quit
+		 		//second argument incase quit is in ;
+		 		char comQuit2[] = "quit";
+		 		if(strcmp(token, comQuit) == 0 || strcmp(token, comQuit2) == 0){
+		 			printf("\nShell closing.\n");
+		 			exit(0);		 		
+		 		}
+		 		
+		 		//This is the LS Command. 
+		 		//show me what is in the file.
+		 		char comLs2[] = "ls";
+		 		if(strcmp(token, comLs) == 0 || strcmp(token, comLs2) == 0){
+		 			char *cls = "ls";
+		 			pid_t cpid = fork();
+		 			char* argList[] = {"ls", NULL};
+		 			if(cpid == -1){
+		 				perror("\nFork error\n");
+		 				exit(0);
+		 			}else if(cpid == 0){
+		 				execvp(cls, argList);
+		 				printf("execvp not working!");
+		 			}else{
+		 				wait(NULL);
+		 			}
+		 		}
+		 		
+		 		//this is the ls -l command.
+		 		char comLsL2[] = "ls -l";
+		 		if(strcmp(token, comLsL) == 0 || strcmp(token, comLsL2) == 0 || strcmp(comLsL3, token) == 0){
+		 			char* argLsL[] = {"ls", "-l", NULL};
+		 			char *cls = "ls";
+		 			pid_t cpid = fork();
+		 			if(cpid == -1){
+		 				perror("\nFork error\n");
+		 				exit(0);
+		 			}else if(cpid == 0){
+		 				execvp(cls, argLsL);
+		 				printf("execvp not working!");
+		 			}else{
+		 				wait(NULL);
+		 			}
+		 		
+		 		}
+		 		//touch command
+		 		char comTou[] = "touch";
+		 		char tocompare[5];
+		 		int Touchadd =5;
+		 		for(int w =0; w < 5; w++){
+		 			if(comTou[w] == token[w])
+		 				Touchadd--;
+		 		}		 		
+		 		//compare the string so that we can confim we have the correct command		 		
+		 		if(Touchadd == 0){
+		 			pid_t cpid = fork();
+		 			if(cpid == -1){		 			
+		 				perror("\nFork error\n");
+		 				exit(0);
+		 			}else if(cpid == 0){
+		 				token = strtok(token, s4);
+		 				//This excutes touch command with the word change as the file name
+		 				while(token != NULL){
+		 					if(strcmp(token, comTou) != 0){
+		 					char* argTouch[] = {"touch", token, NULL};
+		 					execvp(comTou, argTouch);		 				
+		 					printf("execvp not working!\n");
+		 					}		 					
+		 					token = strtok(NULL, s3);		 					
+		 				}
+		 			}else{
+		 				wait(NULL);
+		 			} 		
+		 		}
+		 		
+		 		//cat command
+		 		//This three is to ensure we are in the correct command.
+		 		int addup = 3;
+		 		for(int q = 0; q <= 2; q++){
+		 			if(comCat[q] == token[q])
+		 				addup--;
+		 		} 			
+		 		if(addup == 0){
+		 			char *cat1 = "cat";
+		 			pid_t cpid = fork();		 			
+		 			if(cpid == -1){
+		 				perror("\nFork error\n");
+		 				exit(0);
+		 			}else if(cpid == 0){
+		 			//I only want the term after cat, token check
+		 				token = strtok(token, s3);
+		 				//while token != 0
+		 				while(token != NULL){
+		 					if(strcmp(token, comCat) != 0){
+		 						char* argList[] = {"cat", token, NULL};
+		 						execvp(cat1, argList);
+		 						printf("execvp not working!");
+		 					}
+		 					token = strtok(NULL, s3);
+		 				}
+		 			}else{
+		 				wait(NULL);
+		 			}
+		 		}		
+		 		
+		 		//grep command
+		 		int grepAdd = 4;
+		 		int test13[4];
+		 		char *task;
+		 		int grcow =0;
+		 		for(int k =0; k < 4; k++){
+		 			test13[k] = token[k];		 			
+		 			if(test13[k] == comGrep[k])
+		 				grepAdd--;		 				
+		 		}
+		 		if(grepAdd == 0){
+		 			pid_t cpid = fork();		 			
+		 			if(cpid == -1){
+		 				perror("\nFork error\n");
+		 				exit(0);
+		 			}else if(cpid == 0){
+		 				token = strtok(token, s3);
+		 				//printf(":%s\n", token);
+		 				while(token != NULL){		 					
+		 					if(strcmp(token, comGrep) != 0 || strcmp(token, comGrep) < 0){
+		 						if(grcow == 0){
+		 							task = token;
+		 						}
+		 						grcow++;		 						
+		 						if(grcow == 2){
+		 							char* argList[] = {"grep", task, token, NULL};
+		 							execvp(comGrep, argList);
+		 							printf("execvp not working!");
+		 						}
+		 					}
+		 					
+		 					token = strtok(NULL, s3);
+		 				}
+		 			}else{
+		 				wait(NULL);
+		 			}
+		 		}
+		 		
+		 		//wc command
+		 		int wcAdd = 2;
+		 		int wcow =0;
+		 		char wctest[2];
+		 		for(int k =0; k < 2; k++){
+		 			wctest[k] = token[k];		 			
+		 			if(test13[k] == comWc[k])
+		 				wcAdd--;		 				
+		 		}
+		 		if(wcAdd == 0){
+		 			pid_t cpid = fork();		 			
+		 			if(cpid == -1){
+		 				perror("\nFork error\n");
+		 				exit(0);
+		 			}else if(cpid == 0){
+		 				token = strtok(token, s3);
+		 				//printf(":%s\n", token);
+		 				while(token != NULL){		 					
+		 					if(strcmp(token, comWc) != 0 || strcmp(token, comWc) < 0){
+		 						if(wcow == 0){
+		 							task = token;
+		 						}
+		 						wcow++;		 						
+		 						if(wcow == 2){
+		 							char* argList[] = {"grep", task, token, NULL};
+		 							execvp(comWc, argList);
+		 							printf("execvp not working!");
+		 						}
+		 					}
+		 					
+		 					token = strtok(NULL, s3);
+		 				}
+		 			}else{
+		 				wait(NULL);
+		 			}
+		 		}
+		 		
+		 				 		
+		 		//move to the next token. Needs to be last to ensure were in correct token.	 		
+		 		token = strtok(NULL, s);
+		 	}
+		 	
+		 }else if(mode == 2){
+		 	FILE *batch;
+			char str[1200];
+			char **args;
+			int count = 0;
+			
+			batch = fopen(argv[1], "r");			
+		    if(batch == NULL){
+				perror("Error opening file.");
+				return(1);
+			}else{
+				printf("\nThe file '%s' has been opened for reading.\n", argv[1]);				
+				while(fgets(str, sizeof(str), batch) != NULL){
+					count++;
+					if(strlen(str) < 512){
+						printf("\n%s\n", str);	
+					    args = parse(str);
+					}else
+						printf("Too many characters: %ld\n", strlen(str));
+				}
+				if(count == 0)
+					printf("The file is empty.\n");
+			
+			}			
+			//Deallocate memory
+			free(args);			
+			//Close batch file
+			fclose(batch);
+			printf("\n Exiting batch mode.\n");
+			exit(0);	 	
+		 } 	
+	}
+}
